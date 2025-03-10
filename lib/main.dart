@@ -22,12 +22,14 @@ class Plan {
   String description;
   DateTime date;
   bool completed;
+  String priority;
 
   Plan({
     required this.name,
     required this.description,
     required this.date,
     this.completed = false,
+    this.priority = 'Low',
   });
 }
 
@@ -39,17 +41,38 @@ class PlanManagerScreen extends StatefulWidget {
 class _PlanManagerScreenState extends State<PlanManagerScreen> {
   List<Plan> plans = [];
 
-  void _addPlan(String name, String description, DateTime date) {
+  int _priorityValue(String priority) {
+    switch (priority) {
+      case "High":
+        return 3;
+      case "Medium":
+        return 2;
+      default:
+        return 1;
+    }
+  }
+
+  void _sortPlans() {
     setState(() {
-      plans.add(Plan(name: name, description: description, date: date));
+      plans.sort((a, b) =>
+          _priorityValue(b.priority).compareTo(_priorityValue(a.priority)));
     });
   }
 
-  void _updatePlan(int index, String name, String description, DateTime date) {
+  void _addPlan(String name, String description, DateTime date, String priority) {
+    setState(() {
+      plans.add(Plan(name: name, description: description, date: date, priority: priority));
+      _sortPlans();
+    });
+  }
+
+  void _updatePlan(int index, String name, String description, DateTime date, String priority) {
     setState(() {
       plans[index].name = name;
       plans[index].description = description;
       plans[index].date = date;
+      plans[index].priority = priority;
+      _sortPlans();
     });
   }
 
@@ -65,52 +88,82 @@ class _PlanManagerScreenState extends State<PlanManagerScreen> {
     });
   }
 
+  void _updatePlanDate(Plan plan, DateTime newDate) {
+    setState(() {
+      int index = plans.indexOf(plan);
+      if (index != -1) {
+        plans[index].date = newDate;
+      }
+    });
+  }
+
   Future<void> _showCreatePlanDialog() async {
     String name = '';
     String description = '';
     DateTime? selectedDate;
+    String selectedPriority = 'Low';
 
     await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text('Create Plan'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(labelText: 'Plan Name'),
-                onChanged: (value) {
-                  name = value;
-                },
-              ),
-              TextField(
-                decoration: InputDecoration(labelText: 'Description'),
-                onChanged: (value) {
-                  description = value;
-                },
-              ),
-              SizedBox(height: 10),
-              ElevatedButton(
-                child: Text(selectedDate == null
-                    ? 'Select Date'
-                    : selectedDate!.toLocal().toString().split(' ')[0]),
-                onPressed: () async {
-                  DateTime now = DateTime.now();
-                  final datePicked = await showDatePicker(
-                    context: context,
-                    initialDate: now,
-                    firstDate: DateTime(now.year - 5),
-                    lastDate: DateTime(now.year + 5),
-                  );
-                  if (datePicked != null) {
-                    setState(() {
-                      selectedDate = datePicked;
-                    });
-                  }
-                },
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  decoration: InputDecoration(labelText: 'Plan Name'),
+                  onChanged: (value) {
+                    name = value;
+                  },
+                ),
+                TextField(
+                  decoration: InputDecoration(labelText: 'Description'),
+                  onChanged: (value) {
+                    description = value;
+                  },
+                ),
+                SizedBox(height: 10),
+                ElevatedButton(
+                  child: Text(selectedDate == null
+                      ? 'Select Date'
+                      : selectedDate!.toLocal().toString().split(' ')[0]),
+                  onPressed: () async {
+                    DateTime now = DateTime.now();
+                    final datePicked = await showDatePicker(
+                      context: context,
+                      initialDate: now,
+                      firstDate: DateTime(now.year - 5),
+                      lastDate: DateTime(now.year + 5),
+                    );
+                    if (datePicked != null) {
+                      setState(() {
+                        selectedDate = datePicked;
+                      });
+                    }
+                  },
+                ),
+                SizedBox(height: 10),
+                DropdownButton<String>(
+                  value: selectedPriority,
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        selectedPriority = newValue;
+                      });
+                    }
+                  },
+                  items: <String>['Low', 'Medium', 'High']
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text('Priority: $value'),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -120,10 +173,8 @@ class _PlanManagerScreenState extends State<PlanManagerScreen> {
             TextButton(
               child: Text('Create'),
               onPressed: () {
-                if (name.isNotEmpty &&
-                    description.isNotEmpty &&
-                    selectedDate != null) {
-                  _addPlan(name, description, selectedDate!);
+                if(name.isNotEmpty && description.isNotEmpty && selectedDate != null) {
+                  _addPlan(name, description, selectedDate!, selectedPriority);
                   Navigator.of(context).pop();
                 }
               },
@@ -138,48 +189,69 @@ class _PlanManagerScreenState extends State<PlanManagerScreen> {
     String name = plans[index].name;
     String description = plans[index].description;
     DateTime selectedDate = plans[index].date;
+    String selectedPriority = plans[index].priority;
 
     await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text('Edit Plan'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: TextEditingController(text: name),
-                decoration: InputDecoration(labelText: 'Plan Name'),
-                onChanged: (value) {
-                  name = value;
-                },
-              ),
-              TextField(
-                controller: TextEditingController(text: description),
-                decoration: InputDecoration(labelText: 'Description'),
-                onChanged: (value) {
-                  description = value;
-                },
-              ),
-              SizedBox(height: 10),
-              ElevatedButton(
-                child: Text(selectedDate.toLocal().toString().split(' ')[0]),
-                onPressed: () async {
-                  DateTime now = DateTime.now();
-                  final datePicked = await showDatePicker(
-                    context: context,
-                    initialDate: selectedDate,
-                    firstDate: DateTime(now.year - 5),
-                    lastDate: DateTime(now.year + 5),
-                  );
-                  if (datePicked != null) {
-                    setState(() {
-                      selectedDate = datePicked;
-                    });
-                  }
-                },
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: TextEditingController(text: name),
+                  decoration: InputDecoration(labelText: 'Plan Name'),
+                  onChanged: (value) {
+                    name = value;
+                  },
+                ),
+                TextField(
+                  controller: TextEditingController(text: description),
+                  decoration: InputDecoration(labelText: 'Description'),
+                  onChanged: (value) {
+                    description = value;
+                  },
+                ),
+                SizedBox(height: 10),
+                ElevatedButton(
+                  child: Text(selectedDate.toLocal().toString().split(' ')[0]),
+                  onPressed: () async {
+                    DateTime now = DateTime.now();
+                    final datePicked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(now.year - 5),
+                      lastDate: DateTime(now.year + 5),
+                    );
+                    if (datePicked != null) {
+                      setState(() {
+                        selectedDate = datePicked;
+                      });
+                    }
+                  },
+                ),
+                SizedBox(height: 10),
+                DropdownButton<String>(
+                  value: selectedPriority,
+                  onChanged: (String? newValue) {
+                    if(newValue != null){
+                      setState(() {
+                        selectedPriority = newValue;
+                      });
+                    }
+                  },
+                  items: <String>['Low', 'Medium', 'High']
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text('Priority: $value'),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -189,8 +261,8 @@ class _PlanManagerScreenState extends State<PlanManagerScreen> {
             TextButton(
               child: Text('Update'),
               onPressed: () {
-                if (name.isNotEmpty && description.isNotEmpty) {
-                  _updatePlan(index, name, description, selectedDate);
+                if(name.isNotEmpty && description.isNotEmpty) {
+                  _updatePlan(index, name, description, selectedDate, selectedPriority);
                   Navigator.of(context).pop();
                 }
               },
@@ -215,7 +287,7 @@ class _PlanManagerScreenState extends State<PlanManagerScreen> {
         feedback: Material(
           child: ListTile(
             title: Text(plan.name),
-            subtitle: Text('${plan.description}\n${plan.date.toLocal().toString().split(' ')[0]}'),
+            subtitle: Text('${plan.description}\n${plan.date.toLocal().toString().split(' ')[0]}\nPriority: ${plan.priority}'),
           ),
         ),
         child: Dismissible(
@@ -227,7 +299,7 @@ class _PlanManagerScreenState extends State<PlanManagerScreen> {
           },
           child: ListTile(
             title: Text(
-              plan.name,
+              '${plan.name} (Priority: ${plan.priority})',
               style: TextStyle(
                   decoration: plan.completed ? TextDecoration.lineThrough : null),
             ),
@@ -248,16 +320,66 @@ class _PlanManagerScreenState extends State<PlanManagerScreen> {
       appBar: AppBar(
         title: Text('Plan Manager'),
       ),
-      body: ListView.builder(
-        itemCount: plans.length,
-        itemBuilder: (context, index) {
-          return _buildPlanItem(index);
-        },
+      body: Column(
+        children: [
+          Container(
+            height: 250,
+            child: CalendarWidget(
+              onPlanDropped: (plan, date) {
+                _updatePlanDate(plan, date);
+              },
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: plans.length,
+              itemBuilder: (context, index) {
+                return _buildPlanItem(index);
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showCreatePlanDialog,
         child: Icon(Icons.add),
       ),
+    );
+  }
+}
+
+class CalendarWidget extends StatelessWidget {
+  final Function(Plan, DateTime) onPlanDropped;
+
+  CalendarWidget({required this.onPlanDropped});
+
+  @override
+  Widget build(BuildContext context) {
+    DateTime now = DateTime.now();
+    int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    return GridView.builder(
+      gridDelegate:
+          SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7),
+      itemCount: daysInMonth,
+      itemBuilder: (context, index) {
+        DateTime date = DateTime(now.year, now.month, index + 1);
+        return DragTarget<Plan>(
+          onAccept: (plan) {
+            onPlanDropped(plan, date);
+          },
+          builder: (context, candidateData, rejectedData) {
+            return Container(
+              margin: EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.blueAccent),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              alignment: Alignment.center,
+              child: Text('${date.day}'),
+            );
+          },
+        );
+      },
     );
   }
 }
